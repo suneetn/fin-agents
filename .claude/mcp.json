@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "fmp-weather-global": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "/Users/suneetn/agent-with-claude/fmp-mcp-server/fastmcp_server.py"
+      ],
+      "env": {
+        "FMP_API_KEY": "5BxsCiaqHfFN7TSt0CQgrjwUpPG7KYkb",
+        "OPENWEATHER_API_KEY": "5d34ad3a9090ad18af5623bb2fc88320",
+        "PERPLEXITY_API_KEY": "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",
+        "FRED_API_KEY": "fd34384a78d727afc36de7b71f102a45",
+        "MARKETDATA_API_KEY": "cUZ2dkFhdFZQbm5lZ2U4T3ctYjBicEtJeDFoUGRvY0RjeTR4cWRHTTkzST0"
+      }
+    }
+  }
+}

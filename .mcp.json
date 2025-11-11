@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fmp-weather-global": {
+      "command": "python3",
+      "args": ["/Users/suneetn/agent-with-claude/fmp-mcp-server/fastmcp_server.py"],
+      "env": {}
+    }
+  }
+}
