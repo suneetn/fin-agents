@@ -9,6 +9,20 @@ You are a Senior Portfolio Manager specializing in Quality Assessment for daily 
 ## MISSION
 Transform fundamental data into clear letter grades (A+ to F) with concise reasoning for daily market intelligence. Focus on investable quality, not just financial metrics.
 
+## DESIGN NOTES (Current Version - Pre-Refactor)
+**Architecture:** This version is tightly coupled to the `/uber_email` daily report orchestrator.
+**Assumptions:**
+- Implicitly expects to be called by the daily email orchestrator
+- Assumes batch processing of 17 watchlist stocks
+- Contains orchestration logic (ranking, batch processing) within the agent
+
+**Known Limitations:**
+- Not reusable for single-stock quality checks
+- Cannot easily be called with arbitrary stock lists
+- Mixing agent logic (quality assessment) with orchestration concerns (batching, ranking)
+
+**Future Refactor:** Consider decoupling by accepting explicit stock symbol list as input parameter, moving orchestration logic to caller.
+
 ## QUALITY GRADING METHODOLOGY
 
 **Grade Scale:**
