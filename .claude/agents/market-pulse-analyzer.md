@@ -63,28 +63,95 @@ else:
 
 ## Analysis Framework
 
-### 1. VIX Analysis (No Percentile Speculation)
-Use absolute VIX levels with qualitative historical context:
-- **8-12**: Extremely low volatility (complacency risk)
-- **12-15**: Low volatility environment
-- **15-20**: Normal volatility range
-- **20-25**: Elevated volatility
-- **25-30**: High volatility (defensive positioning)
-- **30-40**: Crisis-level volatility
-- **>40**: Extreme crisis conditions
+### 1. VIX Analysis with Historical Percentiles (ENHANCED)
+**ALWAYS fetch VIX historical data using MCP:**
+```python
+vix_data = mcp__fmp-weather-global__get_vix_data(period='1month')
+```
 
-### 2. Sector Performance Analysis
+Use REAL percentile data (not qualitative guesses):
+- **VIX Percentile < 20th**: Extremely low volatility (complacency risk)
+- **20th-40th**: Below average volatility
+- **40th-60th**: Normal/average volatility
+- **60th-80th**: Elevated volatility (caution)
+- **80th-95th**: High volatility (defensive positioning)
+- **>95th**: Crisis-level volatility
+
+**Calculate VIX trend:**
+- Compare current VIX to 5-day average
+- Determine if RISING, FALLING, or STABLE
+- Note distance from 30-day average
+
+**Example output enhancement:**
+```json
+{
+  "vix": 17.65,
+  "vix_change": 0.28,
+  "vix_percentile_1m": 42.9,  // REAL DATA from MCP
+  "vix_avg_30d": 18.51,       // REAL DATA from MCP
+  "vix_trend": "FALLING",     // CALCULATED from data
+  "vix_regime": "NORMAL"      // DERIVED from percentile
+}
+```
+
+### 2. Historical Trend Analysis (NEW)
+**MANDATORY: Query database for historical context BEFORE analysis**
+
+```python
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'lib'))
+from unified_analytics_db import UnifiedAnalyticsDB
+import asyncio
+
+db = UnifiedAnalyticsDB()
+
+# Get last 5 trading days for trend analysis
+history_5d = db.query('''
+    SELECT analysis_date, spy_price, spy_change, vix, sentiment, market_pulse_score
+    FROM market_pulse_analysis
+    WHERE analysis_date >= date('now', '-7 days')
+    ORDER BY analysis_date DESC
+    LIMIT 5
+''')
+
+# Calculate trends
+avg_spy_change_5d = sum([row['spy_change'] for row in history_5d]) / len(history_5d)
+avg_vix_5d = sum([row['vix'] for row in history_5d]) / len(history_5d)
+bearish_days = len([r for r in history_5d if r['sentiment'] == 'BEARISH'])
+```
+
+**Use historical data to determine:**
+- **Market Trend** (5-day): UP if avg > 0.2%, DOWN if < -0.2%, else SIDEWAYS
+- **Volatility Regime Shift**: VIX rising vs falling vs stable
+- **Sentiment Momentum**: Improving, deteriorating, or stable
+- **Relative Performance**: Is today stronger/weaker than recent average?
+
+**Add to JSON output:**
+```json
+{
+  "market_context": {
+    "5d_avg_change": -0.39,
+    "5d_trend": "DOWN",
+    "vix_5d_avg": 18.77,
+    "vix_trend": "FALLING",
+    "sentiment_shift": "2 bearish → 2 neutral (stabilizing)",
+    "relative_strength": "WEAKER_THAN_AVERAGE"
+  }
+}
+```
+
+### 3. Sector Performance Analysis
 - Identify risk-on vs risk-off rotation patterns
 - Focus on sectors with meaningful moves (>0.5%)
 - Assess correlation levels without speculation
 
-### 3. Market Movers Validation
+### 4. Market Movers Validation
 - **Primary Focus**: Large cap (>$10B) and mid cap (>$1B)
 - **Volume Requirement**: 2x average daily volume minimum
 - **News Verification**: Check for fundamental catalysts
 - **Exclude**: Penny stocks and low-float biotechs unless exceptional
 
-### 4. News Catalyst Analysis
+### 5. News Catalyst Analysis
 **Use MCP tools to gather market-moving news:**
 - `mcp__fmp-weather-global__get_general_news(limit=10)` - Broad market news
 - `mcp__fmp-weather-global__get_stock_news(tickers="top_movers")` - News for major movers
@@ -97,15 +164,15 @@ Use absolute VIX levels with qualitative historical context:
 - **Corporate:** M&A, guidance revisions, management changes
 - **Technical:** Options expiry, rebalancing, algorithmic flows
 
-### 5. Quantitative Market Pulse Score
+### 6. Quantitative Market Pulse Score
 **Total: 100 points weighted as:**
-- VIX Component: 25 points (reduced from 30)
-- Sector Correlation: 20 points (reduced from 25)
-- Market Breadth: 20 points (reduced from 25)
-- Volume/Liquidity: 20 points (same)
-- News Catalyst Score: 15 points (NEW)
+- VIX Component: 25 points
+- Sector Correlation: 20 points
+- Market Breadth: 20 points
+- Volume/Liquidity: 20 points
+- News Catalyst Score: 15 points
 
-### 6. Output Format: JSON ONLY
+### 7. Output Format: JSON ONLY (ENHANCED)
 
 **CRITICAL: Always output ONLY structured JSON for template integration. No markdown analysis.**
 
@@ -119,6 +186,10 @@ Use absolute VIX levels with qualitative historical context:
     "spy_change": -2.70,
     "vix": 21.66,
     "vix_change": 31.83,
+    "vix_percentile_1m": 42.9,
+    "vix_avg_30d": 18.51,
+    "vix_trend": "FALLING",
+    "vix_regime": "NORMAL",
     "top_sector": "Real Estate",
     "top_sector_change": -1.07,
     "worst_sector": "Financials",
@@ -128,6 +199,13 @@ Use absolute VIX levels with qualitative historical context:
     "advance_decline": 0.2,
     "sentiment": "BEARISH",
     "summary": "3-4 sentence executive summary explaining what happened and why",
+    "market_context": {
+      "5d_avg_change": -0.39,
+      "5d_trend": "DOWN",
+      "vix_5d_avg": 18.77,
+      "sentiment_shift": "2 bearish → 2 neutral (stabilizing)",
+      "relative_strength": "WEAKER_THAN_AVERAGE"
+    },
     "news": [
       {
         "title": "Most relevant headline",
@@ -155,6 +233,10 @@ Use absolute VIX levels with qualitative historical context:
 - `spy_change`: Float, percentage change (negative for down)
 - `vix`: Float, current VIX level
 - `vix_change`: Float, percentage change from previous day
+- `vix_percentile_1m`: Float, VIX percentile rank over 1 month (0-100) **REQUIRED from MCP**
+- `vix_avg_30d`: Float, 30-day VIX average **REQUIRED from MCP**
+- `vix_trend`: String, "RISING", "FALLING", or "STABLE" **CALCULATED**
+- `vix_regime`: String, "EXTREMELY_LOW", "LOW", "NORMAL", "ELEVATED", or "HIGH" **DERIVED**
 - `top_sector`: String, best performing sector name
 - `top_sector_change`: Float, sector percentage change
 - `worst_sector`: String, worst performing sector
@@ -163,7 +245,13 @@ Use absolute VIX levels with qualitative historical context:
 - `treasury_2y`: Float, 2-year treasury yield (or 4.65 if unavailable)
 - `advance_decline`: Float, estimated breadth ratio (0.1 to 3.0)
 - `sentiment`: String, MUST BE "BULLISH", "NEUTRAL", or "BEARISH"
-- `summary`: String, 3-4 sentences explaining what happened and why
+- `summary`: String, 3-4 sentences explaining what happened and why WITH historical context
+- `market_context`: Object with historical trend data **REQUIRED**:
+  - `5d_avg_change`: Float, 5-day average SPY change
+  - `5d_trend`: String, "UP", "DOWN", or "SIDEWAYS"
+  - `vix_5d_avg`: Float, 5-day average VIX
+  - `sentiment_shift`: String, describing sentiment evolution
+  - `relative_strength`: String, today vs recent average
 - `news`: Array of 3 news objects with title/source/time
 
 **Summary Writing Guidelines:**
@@ -176,9 +264,11 @@ Use absolute VIX levels with qualitative historical context:
 
 ## Data Quality Requirements
 
-### VIX Validation
+### VIX Validation (ENHANCED)
 - Ensure VIX level is reasonable (8-80 range)
-- Use only qualitative historical context
+- **ALWAYS use quantitative historical data** (percentiles, averages) from MCP
+- Calculate trend direction (RISING/FALLING/STABLE)
+- Derive volatility regime from percentile ranks
 - Cross-reference with market performance
 
 ### Market Movers Filtering
