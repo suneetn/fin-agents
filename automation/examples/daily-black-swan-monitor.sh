@@ -83,7 +83,10 @@ log "Analysis completed successfully"
 # Step 2: Format the analysis using output-formatter agent
 log "Formatting analysis for professional email delivery..."
 
-FORMATTED_HTML=$(timeout 300 claude --print \
+# Create temp file for formatted HTML
+HTML_TEMP_FILE="/tmp/black-swan-email-$$.html"
+
+timeout 300 claude --print \
     --max-turns 15 \
     --dangerously-skip-permissions \
     --mcp-config "$MCP_CONFIG" \
@@ -103,19 +106,29 @@ Requirements:
 - Title: 'Daily Black Swan Tail Risk Monitor'
 - Source attribution: 'Automated via systemic-risk-monitor agent'
 
-Format as complete HTML email body (no subject, no to/from - just the HTML body content).
-Use strict anti-AI-detection rules - this must look like a \$10K/year professional research platform." 2>&1)
+CRITICAL: Use the Write tool to save the complete HTML (no explanations, ONLY the HTML code) to this file:
+$HTML_TEMP_FILE
+
+Output ONLY the HTML code - do not include any explanations or descriptions.
+Use strict anti-AI-detection rules - this must look like a \$10K/year professional research platform." 2>&1
 
 FORMAT_EXIT=$?
 
-if [[ $FORMAT_EXIT -ne 0 ]]; then
-    error "Formatting failed with exit code $FORMAT_EXIT"
-    log "Formatter output: $FORMATTED_HTML"
-    # Fall back to simple HTML if formatting fails
-    FORMATTED_HTML="<html><body><pre>$ANALYSIS_OUTPUT</pre></body></html>"
+# Check if HTML file was created
+if [[ -f "$HTML_TEMP_FILE" ]]; then
+    FORMATTED_HTML=$(cat "$HTML_TEMP_FILE")
+    rm -f "$HTML_TEMP_FILE"
+    log "Formatting completed - HTML file generated"
+elif [[ -f "/home/claude-automation/black_swan_risk_report.html" ]]; then
+    # Fallback to check the default location
+    FORMATTED_HTML=$(cat "/home/claude-automation/black_swan_risk_report.html")
+    log "Formatting completed - using default HTML location"
+else
+    error "Formatting produced no HTML file"
+    # Fall back to simple HTML
+    FORMATTED_HTML="<html><body><h1>Black Swan Risk Analysis</h1><pre>$ANALYSIS_OUTPUT</pre></body></html>"
+    log "Using fallback HTML formatting"
 fi
-
-log "Formatting completed"
 
 # Extract key information for email subject
 RISK_LEVEL=$(echo "$ANALYSIS_OUTPUT" | grep -i "risk.*level\|risk.*score" | head -1 || echo "Analysis Complete")
