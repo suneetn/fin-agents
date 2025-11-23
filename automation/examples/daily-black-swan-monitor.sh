@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_NAME="daily-black-swan-monitor"
 LOG_DIR="$HOME/logs"
 LOG_FILE="$LOG_DIR/${SCRIPT_NAME}-$(date +%Y%m%d).log"
-EMAIL_TO="suneetn@gmail.com,suneetn@quanthub.com"
+EMAIL_TO="suneetn@gmail.com,suneetn@quanthub.ai"
 TIMEOUT=600  # 10 minutes
 
 # Ensure log directory exists
@@ -40,7 +40,7 @@ if [[ ! -f "$MCP_CONFIG" ]]; then
     exit 1
 fi
 
-# Execute black swan analysis
+# Step 1: Execute black swan analysis
 log "Running systemic-risk-monitor agent..."
 
 ANALYSIS_OUTPUT=$(timeout $TIMEOUT claude --print \
@@ -61,13 +61,14 @@ Calculate the black swan risk score (0-100) with component breakdown:
 - Extreme Movers (0-25 points): Count of >10% daily moves
 - IV Rank (0-20 points): Average IV rank × 0.20
 
-Provide:
+Provide structured output with:
 - Current risk score with level (NORMAL/ELEVATED/HIGH/CRISIS)
+- Component breakdown with actual values
 - Specific actionable recommendations
 - Key metrics (VIX, correlation %, extreme count)
 - Historical context and comparison
 
-Format the output clearly for email delivery." 2>&1)
+Output the analysis in JSON format for professional formatting." 2>&1)
 
 CLAUDE_EXIT=$?
 
@@ -79,10 +80,47 @@ fi
 
 log "Analysis completed successfully"
 
+# Step 2: Format the analysis using output-formatter agent
+log "Formatting analysis for professional email delivery..."
+
+FORMATTED_HTML=$(timeout 300 claude --print \
+    --max-turns 15 \
+    --dangerously-skip-permissions \
+    --mcp-config "$MCP_CONFIG" \
+    -- "Use the output-formatter agent to transform this black swan risk analysis into a Bloomberg Terminal-quality HTML email.
+
+Analysis Data:
+$ANALYSIS_OUTPUT
+
+Requirements:
+- Professional institutional design (navy blue headers with gold accents)
+- Monospace fonts for all numbers and metrics
+- Risk level badges with appropriate colors (green/yellow/red/black)
+- Component breakdown table with scores
+- Clear actionable recommendations section
+- NO purple gradients, minimal emojis (section headers only)
+- Include timestamp: $(date +'%Y-%m-%d %H:%M:%S UTC')
+- Title: 'Daily Black Swan Tail Risk Monitor'
+- Source attribution: 'Automated via systemic-risk-monitor agent'
+
+Format as complete HTML email body (no subject, no to/from - just the HTML body content).
+Use strict anti-AI-detection rules - this must look like a \$10K/year professional research platform." 2>&1)
+
+FORMAT_EXIT=$?
+
+if [[ $FORMAT_EXIT -ne 0 ]]; then
+    error "Formatting failed with exit code $FORMAT_EXIT"
+    log "Formatter output: $FORMATTED_HTML"
+    # Fall back to simple HTML if formatting fails
+    FORMATTED_HTML="<html><body><pre>$ANALYSIS_OUTPUT</pre></body></html>"
+fi
+
+log "Formatting completed"
+
 # Extract key information for email subject
 RISK_LEVEL=$(echo "$ANALYSIS_OUTPUT" | grep -i "risk.*level\|risk.*score" | head -1 || echo "Analysis Complete")
 
-# Send email via Claude with Mailgun MCP tool
+# Step 3: Send email via Mailgun MCP tool
 log "Sending email notification to $EMAIL_TO..."
 
 EMAIL_RESULT=$(timeout 120 claude --print \
@@ -91,45 +129,9 @@ EMAIL_RESULT=$(timeout 120 claude --print \
     -- "Send an email using the mcp__fmp-weather-global__send_email_mailgun tool.
 
 Parameters:
-- to_addresses: ['suneetn@gmail.com', 'suneetn@quanthub.com']
+- to_addresses: ['suneetn@gmail.com', 'suneetn@quanthub.ai']
 - subject: 'Daily Black Swan Risk Monitor - $(date +%Y-%m-%d) - ${RISK_LEVEL}'
-- content: '''
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { background: #1a1a2e; color: white; padding: 20px; }
-        .content { padding: 20px; }
-        .metric { background: #f4f4f4; padding: 15px; margin: 10px 0; border-left: 4px solid #0066cc; }
-        .alert { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
-        .critical { background: #f8d7da; border-left: 4px solid #dc3545; }
-        .normal { background: #d4edda; border-left: 4px solid #28a745; }
-        .footer { font-size: 12px; color: #666; padding: 20px; border-top: 1px solid #ddd; }
-    </style>
-</head>
-<body>
-    <div class=\"header\">
-        <h1>🚨 Daily Black Swan Tail Risk Monitor</h1>
-        <p>Report Generated: $(date +'%Y-%m-%d %H:%M:%S UTC')</p>
-    </div>
-
-    <div class=\"content\">
-        <h2>Systemic Risk Analysis</h2>
-        <pre style=\"background: #f9f9f9; padding: 15px; border-radius: 5px; overflow-x: auto;\">
-$ANALYSIS_OUTPUT
-        </pre>
-    </div>
-
-    <div class=\"footer\">
-        <p><strong>Automated Black Swan Monitor</strong></p>
-        <p>This report is generated daily at 9:00 AM UTC by the systemic-risk-monitor agent.</p>
-        <p>Server: claude-automation@159.65.37.77</p>
-        <p>Repository: <a href=\"https://github.com/suneetn/fin-agents\">github.com/suneetn/fin-agents</a></p>
-    </div>
-</body>
-</html>
-'''
+- content: '''$FORMATTED_HTML'''
 - is_html: true
 - tags: ['black-swan-monitor', 'daily-report', 'systemic-risk']
 
@@ -149,6 +151,11 @@ fi
 REPORT_FILE="$LOG_DIR/black-swan-report-$(date +%Y%m%d-%H%M%S).txt"
 echo "$ANALYSIS_OUTPUT" > "$REPORT_FILE"
 log "Analysis saved to $REPORT_FILE"
+
+# Save formatted HTML for reference
+HTML_FILE="$LOG_DIR/black-swan-email-$(date +%Y%m%d-%H%M%S).html"
+echo "$FORMATTED_HTML" > "$HTML_FILE"
+log "Formatted email saved to $HTML_FILE"
 
 log "Daily black swan monitoring completed successfully"
 exit 0
