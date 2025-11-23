@@ -143,6 +143,28 @@ outputs/
 # Backups
 backups/
 
+# Archives
+.archive/
+
+# Data directories
+data/
+!data/.gitkeep
+mock_data/
+mocks/
+
+# Output JSON files (agent runs)
+*_analysis_*.json
+*_payload*.json
+*_results*.json
+market_pulse_*.json
+quality_assessment_*.json
+tiered_screening_*.json
+volatility_analysis_*.json
+smart_money_*.json
+big_cap_*.json
+email_*.json
+!schemas/*.json
+
 
 
 
@@ -152,3 +174,4 @@ backups/
 
 
 .claude-credentials
+web-frontend/.claude/mcp-servers.json
