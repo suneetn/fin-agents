@@ -1,0 +1,29 @@
+{
+  "name": "fin-agent-with-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Financial Intelligence Platform with Multi-Agent Orchestration",
+  "workspaces": [
+    "web-frontend",
+    "lib/core"
+  ],
+  "scripts": {
+    "dev:core": "cd lib/core && npm run dev",
+    "build:core": "cd lib/core && npm run build",
+    "test:core": "cd lib/core && npm test",
+    "test:core:watch": "cd lib/core && npm test -- --watch",
+    "test:core:coverage": "cd lib/core && npm test -- --coverage",
+    "typecheck:core": "cd lib/core && npx tsc --noEmit",
+    "dev:frontend": "cd web-frontend && npm run dev",
+    "build": "npm run build:core && cd web-frontend && npm run build",
+    "test": "npm run test:core",
+    "typecheck": "npm run typecheck:core"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}
