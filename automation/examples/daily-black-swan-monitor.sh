@@ -62,26 +62,32 @@ Execute real-time analysis using MCP tools:
    CRITICAL: Use the EXACT percentile value returned by this tool for your calculation
 2. get_sector_performance() - Sector correlation analysis
 3. get_market_movers('gainers') and get_market_movers('losers') - For extreme mover counts
-   CRITICAL: Filter and count ONLY liquid stocks for systemic risk:
+   CRITICAL: For TRUE SYSTEMIC RISK, count ONLY large-cap stocks:
    - Stock price >= \$10 (exclude penny stocks)
-   - Preferably market cap >= \$1 billion (major companies only)
-   - Penny stock volatility (price <\$10) does NOT indicate systemic market stress
+   - Market cap >= \$10 BILLION (large caps only - this is MANDATORY)
+   - EXCLUDE all leveraged ETFs (names containing "2X", "2x", "ETF", "Daily")
+   - EXCLUDE small/mid caps - they do NOT represent systemic market stress
+   - Only count S&P 500 / Russell 1000 sized companies
+   Example: INSP at $3.5B market cap does NOT count (too small)
 4. get_multiple_iv_ranks(['SPY','QQQ','IWM','DIA']) - Options market IV
 
 Calculate the black swan risk score (0-100) with component breakdown:
 - VIX Analysis (0-30 points): Use the actual 1-year percentile × 0.30
-  Example: If VIX is at 40th percentile, this contributes 12 points (40 × 0.30)
+  Example: If VIX is at 86.4th percentile, this contributes 25.92 points
 - Sector Correlation (0-25 points): % sectors moving in same direction
-- Extreme Movers (0-25 points): Count of liquid stocks (price ≥\$10) with >10% daily moves
-  Scale: 0-5 stocks = 0-5 points, 5-10 stocks = 5-15 points, 10+ stocks = 15-25 points
+- Extreme Movers (0-25 points): Count of LARGE CAP stocks (market cap ≥\$10B) with >10% daily moves
+  Scale: 0 stocks = 0 points, 1-2 stocks = 5 points, 3-5 stocks = 10 points, 6-10 stocks = 15 points, >10 stocks = 25 points
+  IMPORTANT: If no large caps have >10% moves, score is 0 points (not 25)
 - IV Rank (0-20 points): Average IV rank of major indices × 0.20
 
 Provide structured output with:
 - Current risk score with level (NORMAL <35 / ELEVATED 35-60 / HIGH 60-80 / CRISIS >80)
 - Component breakdown with actual values and calculations shown
-- List of filtered liquid extreme movers (if any) with prices
+- List of LARGE CAP extreme movers (market cap ≥\$10B) with symbols, prices, and market caps
+  * If ZERO large caps, explicitly state: "0 large cap stocks with >10% moves"
+  * Show total count of small/mid cap movers that were EXCLUDED for context
 - Specific actionable recommendations
-- Key metrics (VIX level, VIX percentile, correlation %, filtered extreme count)
+- Key metrics (VIX level, VIX percentile, correlation %, large cap extreme count)
 - Historical context and comparison
 
 Output the analysis in JSON format for professional formatting." 2>&1)
