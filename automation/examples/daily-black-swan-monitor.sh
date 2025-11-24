@@ -7,9 +7,24 @@ set -euo pipefail
 
 # Configuration
 SCRIPT_NAME="daily-black-swan-monitor"
-LOG_DIR="$HOME/logs"
+
+# Detect environment (local vs remote)
+if [[ -f "$HOME/.bashrc.claude" ]]; then
+    # Remote/automated environment
+    LOG_DIR="$HOME/logs"
+    EMAIL_TO="suneetn@gmail.com,suneetn@quanthub.ai"
+    source "$HOME/.bashrc.claude"
+    USE_SKIP_PERMISSIONS="--dangerously-skip-permissions"
+    echo "Running in automated mode (remote server)"
+else
+    # Local development/testing environment
+    LOG_DIR="$(pwd)/automation/test-logs"
+    EMAIL_TO="suneetn@gmail.com"
+    USE_SKIP_PERMISSIONS=""
+    echo "Running in local testing mode"
+fi
+
 LOG_FILE="$LOG_DIR/${SCRIPT_NAME}-$(date +%Y%m%d).log"
-EMAIL_TO="suneetn@gmail.com,suneetn@quanthub.ai"
 TIMEOUT=600  # 10 minutes
 
 # Ensure log directory exists
@@ -23,13 +38,6 @@ log() {
 error() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $*" | tee -a "$LOG_FILE" >&2
 }
-
-# Load Claude authentication
-if [[ ! -f "$HOME/.bashrc.claude" ]]; then
-    error "Claude authentication not found at $HOME/.bashrc.claude"
-    exit 1
-fi
-source "$HOME/.bashrc.claude"
 
 log "Starting daily black swan tail risk monitoring..."
 
@@ -45,7 +53,7 @@ log "Running systemic-risk-monitor agent..."
 
 ANALYSIS_OUTPUT=$(timeout $TIMEOUT claude --print \
     --max-turns 20 \
-    --dangerously-skip-permissions \
+    $USE_SKIP_PERMISSIONS \
     --mcp-config "$MCP_CONFIG" \
     -- "Use the systemic-risk-monitor agent to conduct a comprehensive black swan tail risk analysis.
 
@@ -96,7 +104,7 @@ HTML_TEMP_FILE="/tmp/black-swan-email-$$.html"
 
 timeout 300 claude --print \
     --max-turns 15 \
-    --dangerously-skip-permissions \
+    $USE_SKIP_PERMISSIONS \
     --mcp-config "$MCP_CONFIG" \
     -- "Use the output-formatter agent to transform this black swan risk analysis into a Bloomberg Terminal-quality HTML email.
 
@@ -145,7 +153,7 @@ RISK_LEVEL=$(echo "$ANALYSIS_OUTPUT" | grep -i "risk.*level\|risk.*score" | head
 log "Sending email notification to $EMAIL_TO..."
 
 EMAIL_RESULT=$(timeout 120 claude --print \
-    --dangerously-skip-permissions \
+    $USE_SKIP_PERMISSIONS \
     --mcp-config "$MCP_CONFIG" \
     -- "Send an email using the mcp__fmp-weather-global__send_email_mailgun tool.
 
