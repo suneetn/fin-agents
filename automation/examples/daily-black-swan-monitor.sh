@@ -93,9 +93,9 @@ Provide structured output with:
 - Key metrics (VIX level, VIX percentile, correlation %, large cap extreme count)
 - Historical context and comparison
 
-Output the analysis in JSON format for professional formatting." 2>&1 | tee "$ANALYSIS_FILE"
+Output the analysis in JSON format for professional formatting." > "$ANALYSIS_FILE" 2>&1
 
-CLAUDE_EXIT=${PIPESTATUS[0]}
+CLAUDE_EXIT=$?
 
 if [[ $CLAUDE_EXIT -ne 0 ]]; then
     error "Claude execution failed with exit code $CLAUDE_EXIT"
