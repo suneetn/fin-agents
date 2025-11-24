@@ -159,12 +159,12 @@ elif [[ -f "/home/claude-automation/black_swan_risk_report.html" ]]; then
 else
     error "Formatting produced no HTML file"
     # Fall back to simple HTML
-    FORMATTED_HTML="<html><body><h1>Black Swan Risk Analysis</h1><pre>$ANALYSIS_OUTPUT</pre></body></html>"
+    FORMATTED_HTML="<html><body><h1>Black Swan Risk Analysis</h1><pre>$(cat "$ANALYSIS_FILE")</pre></body></html>"
     log "Using fallback HTML formatting"
 fi
 
 # Extract key information for email subject
-RISK_LEVEL=$(echo "$ANALYSIS_OUTPUT" | grep -i "risk.*level\|risk.*score" | head -1 || echo "Analysis Complete")
+RISK_LEVEL=$(grep -i "risk.*level\|risk.*score" "$ANALYSIS_FILE" | head -1 || echo "Analysis Complete")
 
 # Step 3: Send email via Mailgun MCP tool
 log "Sending email notification to $EMAIL_TO..."
