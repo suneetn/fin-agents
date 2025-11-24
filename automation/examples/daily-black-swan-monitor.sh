@@ -51,7 +51,10 @@ fi
 # Step 1: Execute black swan analysis
 log "Running systemic-risk-monitor agent..."
 
-ANALYSIS_OUTPUT=$(timeout $TIMEOUT claude --print \
+# Save analysis output directly to file for better reliability
+ANALYSIS_FILE="/tmp/black-swan-analysis-$$.txt"
+
+timeout $TIMEOUT claude --print \
     --max-turns 20 \
     $USE_SKIP_PERMISSIONS \
     --mcp-config "$MCP_CONFIG" \
@@ -90,17 +93,25 @@ Provide structured output with:
 - Key metrics (VIX level, VIX percentile, correlation %, large cap extreme count)
 - Historical context and comparison
 
-Output the analysis in JSON format for professional formatting." 2>&1)
+Output the analysis in JSON format for professional formatting." 2>&1 | tee "$ANALYSIS_FILE"
 
-CLAUDE_EXIT=$?
+CLAUDE_EXIT=${PIPESTATUS[0]}
 
 if [[ $CLAUDE_EXIT -ne 0 ]]; then
     error "Claude execution failed with exit code $CLAUDE_EXIT"
-    log "Output: $ANALYSIS_OUTPUT"
+    if [[ -f "$ANALYSIS_FILE" ]]; then
+        log "Partial output: $(head -20 "$ANALYSIS_FILE")"
+    fi
     exit 1
 fi
 
-log "Analysis completed successfully"
+# Verify output was captured
+if [[ ! -s "$ANALYSIS_FILE" ]]; then
+    error "Analysis file is empty - no output captured"
+    exit 1
+fi
+
+log "Analysis completed successfully ($(wc -l < "$ANALYSIS_FILE") lines captured)"
 
 # Step 2: Format the analysis using output-formatter agent
 log "Formatting analysis for professional email delivery..."
@@ -115,7 +126,7 @@ timeout 300 claude --print \
     -- "Use the output-formatter agent to transform this black swan risk analysis into a Bloomberg Terminal-quality HTML email.
 
 Analysis Data:
-$ANALYSIS_OUTPUT
+$(cat "$ANALYSIS_FILE")
 
 Requirements:
 - Professional institutional design (navy blue headers with gold accents)
@@ -184,13 +195,16 @@ fi
 
 # Save analysis to file for reference
 REPORT_FILE="$LOG_DIR/black-swan-report-$(date +%Y%m%d-%H%M%S).txt"
-echo "$ANALYSIS_OUTPUT" > "$REPORT_FILE"
+cp "$ANALYSIS_FILE" "$REPORT_FILE"
 log "Analysis saved to $REPORT_FILE"
 
 # Save formatted HTML for reference
 HTML_FILE="$LOG_DIR/black-swan-email-$(date +%Y%m%d-%H%M%S).html"
 echo "$FORMATTED_HTML" > "$HTML_FILE"
 log "Formatted email saved to $HTML_FILE"
+
+# Cleanup temp files
+rm -f "$ANALYSIS_FILE"
 
 log "Daily black swan monitoring completed successfully"
 exit 0
