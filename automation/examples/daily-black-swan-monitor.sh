@@ -50,22 +50,30 @@ ANALYSIS_OUTPUT=$(timeout $TIMEOUT claude --print \
     -- "Use the systemic-risk-monitor agent to conduct a comprehensive black swan tail risk analysis.
 
 Execute real-time analysis using MCP tools:
-1. get_vix_data(period='1year') - Current VIX and percentile
+1. get_vix_data(period='1year') - Get current VIX level and 1-year percentile
+   CRITICAL: Use the EXACT percentile value returned by this tool for your calculation
 2. get_sector_performance() - Sector correlation analysis
-3. get_market_movers('gainers') and get_market_movers('losers') - Extreme mover counts
+3. get_market_movers('gainers') and get_market_movers('losers') - For extreme mover counts
+   CRITICAL: Filter and count ONLY liquid stocks for systemic risk:
+   - Stock price >= \$10 (exclude penny stocks)
+   - Preferably market cap >= \$1 billion (major companies only)
+   - Penny stock volatility (price <\$10) does NOT indicate systemic market stress
 4. get_multiple_iv_ranks(['SPY','QQQ','IWM','DIA']) - Options market IV
 
 Calculate the black swan risk score (0-100) with component breakdown:
-- VIX Analysis (0-30 points): VIX percentile × 0.30
-- Sector Correlation (0-25 points): % sectors same direction
-- Extreme Movers (0-25 points): Count of >10% daily moves
-- IV Rank (0-20 points): Average IV rank × 0.20
+- VIX Analysis (0-30 points): Use the actual 1-year percentile × 0.30
+  Example: If VIX is at 40th percentile, this contributes 12 points (40 × 0.30)
+- Sector Correlation (0-25 points): % sectors moving in same direction
+- Extreme Movers (0-25 points): Count of liquid stocks (price ≥\$10) with >10% daily moves
+  Scale: 0-5 stocks = 0-5 points, 5-10 stocks = 5-15 points, 10+ stocks = 15-25 points
+- IV Rank (0-20 points): Average IV rank of major indices × 0.20
 
 Provide structured output with:
-- Current risk score with level (NORMAL/ELEVATED/HIGH/CRISIS)
-- Component breakdown with actual values
+- Current risk score with level (NORMAL <35 / ELEVATED 35-60 / HIGH 60-80 / CRISIS >80)
+- Component breakdown with actual values and calculations shown
+- List of filtered liquid extreme movers (if any) with prices
 - Specific actionable recommendations
-- Key metrics (VIX, correlation %, extreme count)
+- Key metrics (VIX level, VIX percentile, correlation %, filtered extreme count)
 - Historical context and comparison
 
 Output the analysis in JSON format for professional formatting." 2>&1)
