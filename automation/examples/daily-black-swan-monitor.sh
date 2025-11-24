@@ -68,7 +68,7 @@ Execute real-time analysis using MCP tools:
    - EXCLUDE all leveraged ETFs (names containing "2X", "2x", "ETF", "Daily")
    - EXCLUDE small/mid caps - they do NOT represent systemic market stress
    - Only count S&P 500 / Russell 1000 sized companies
-   Example: INSP at $3.5B market cap does NOT count (too small)
+   Example: INSP at \$3.5B market cap does NOT count (too small)
 4. get_multiple_iv_ranks(['SPY','QQQ','IWM','DIA']) - Options market IV
 
 Calculate the black swan risk score (0-100) with component breakdown:
