@@ -12,7 +12,7 @@ SCRIPT_NAME="daily-black-swan-monitor"
 if [[ -f "$HOME/.bashrc.claude" ]]; then
     # Remote/automated environment - read from emails.csv
     LOG_DIR="$HOME/logs"
-    EMAIL_CSV="/root/claude-agents/emails.csv"
+    EMAIL_CSV="$HOME/claude-agents/emails.csv"
     MCP_CONFIG="$HOME/.claude/mcp.json"
     CLAUDE_CMD="claude"
     TIMEOUT_CMD="timeout"  # Linux has timeout command
@@ -296,6 +296,7 @@ EMAIL_EXIT=$?
 
 if [[ $EMAIL_EXIT -eq 0 ]]; then
     log "Email sent successfully to $EMAIL_TO"
+    log "Mailgun API Response: $EMAIL_RESULT"
 else
     error "Email delivery failed with exit code $EMAIL_EXIT"
     log "Email output: $EMAIL_RESULT"
