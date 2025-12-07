@@ -346,8 +346,8 @@ fi
 
 log "Step 7/7: Professional HTML email formatted successfully"
 
-# Step 8: Determine email recipients and send
-log "Step 8/8: Determining email recipients and sending..."
+# Step 8: Send emails in batches
+log "Step 8/8: Sending emails in batches..."
 
 # Read email addresses from CSV file
 if [[ ! -f "$EMAIL_CSV" ]]; then
@@ -355,48 +355,35 @@ if [[ ! -f "$EMAIL_CSV" ]]; then
     exit 1
 fi
 
-# Extract emails from CSV (skip header, get first column)
-EMAIL_LIST=$(tail -n +2 "$EMAIL_CSV" | cut -d',' -f1 | tr '\n' ',' | sed 's/,$//')
-log "Email recipients: $EMAIL_LIST"
+# Save HTML to temporary file for batch sender
+HTML_TEMP_FILE="/tmp/uber-email-$(date +%Y%m%d-%H%M%S).html"
+echo "$FORMATTED_HTML" > "$HTML_TEMP_FILE"
 
-# Convert comma-separated list to JSON array
-EMAIL_ARRAY="["
-FIRST=true
-IFS=',' read -ra EMAILS <<< "$EMAIL_LIST"
-for email in "${EMAILS[@]}"; do
-    email=$(echo "$email" | xargs)  # trim whitespace
-    if [[ "$FIRST" = true ]]; then
-        EMAIL_ARRAY="${EMAIL_ARRAY}'${email}'"
-        FIRST=false
-    else
-        EMAIL_ARRAY="${EMAIL_ARRAY}, '${email}'"
-    fi
-done
-EMAIL_ARRAY="${EMAIL_ARRAY}]"
+# Use batch sender script
+BATCH_SENDER="$HOME/scripts/send-email-batch.sh"
+SUBJECT="QuantHub.ai Daily Intelligence - $(date +%Y-%m-%d)"
 
-log "Sending email to: $EMAIL_ARRAY"
+if [[ ! -f "$BATCH_SENDER" ]]; then
+    error "Batch sender script not found at $BATCH_SENDER"
+    error "Please deploy send-email-batch.sh to $HOME/scripts/"
+    exit 1
+fi
 
-EMAIL_RESULT=$(timeout 180 claude --print \
-    --dangerously-skip-permissions \
-    --mcp-config "$MCP_CONFIG" \
-    -- "Send an email using the mcp__fmp-weather-global__send_email_mailgun tool.
+# Send emails in batches of 3
+export MCP_CONFIG  # Pass MCP config to batch sender
+export LOG_PREFIX="[UBER_EMAIL]"
 
-Parameters:
-- to_addresses: $EMAIL_ARRAY
-- subject: 'QuantHub.ai Daily Intelligence - $(date +%Y-%m-%d)'
-- content: '''$FORMATTED_HTML'''
-- is_html: true
-- tags: ['daily-intelligence', 'uber-email', 'quanthub']
-
-Execute the email send now." 2>&1)
+"$BATCH_SENDER" "$EMAIL_CSV" "$SUBJECT" "$HTML_TEMP_FILE" 3
 
 EMAIL_EXIT=$?
 
+# Cleanup temp file
+rm -f "$HTML_TEMP_FILE"
+
 if [[ $EMAIL_EXIT -eq 0 ]]; then
-    log "Email sent successfully to $EMAIL_LIST"
+    log "Emails sent successfully in batches"
 else
-    error "Email delivery failed with exit code $EMAIL_EXIT"
-    log "Email output: $EMAIL_RESULT"
+    error "Batch email delivery failed with exit code $EMAIL_EXIT"
     exit 1
 fi
 

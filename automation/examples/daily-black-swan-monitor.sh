@@ -1,6 +1,6 @@
 #!/bin/bash
 # Daily Black Swan Tail Risk Monitor
-# Runs systemic-risk-monitor agent and emails results
+# Runs black-swan-monitor agent and emails results
 # Schedule: Daily at 9:00 AM UTC (before market open)
 
 set -euo pipefail
@@ -28,7 +28,9 @@ if [[ -f "$HOME/.bashrc.claude" ]]; then
     fi
 
     source "$HOME/.bashrc.claude"
-    USE_SKIP_PERMISSIONS="--dangerously-skip-permissions"
+    # Note: --dangerously-skip-permissions cannot be used with root for security
+    # Using --permission-mode bypassPermissions for automated execution
+    USE_SKIP_PERMISSIONS="--permission-mode bypassPermissions"
 else
     # Local development/testing environment
     LOG_DIR="$(pwd)/automation/test-logs"
@@ -94,7 +96,7 @@ else
 fi
 
 # Step 1: Execute black swan analysis
-log "Running systemic-risk-monitor agent..."
+log "Running black-swan-monitor agent..."
 log "DEBUG: CLAUDE_CMD=$CLAUDE_CMD"
 log "DEBUG: MCP_ARG=$MCP_ARG"
 
@@ -107,7 +109,7 @@ if [[ -n "$TIMEOUT_CMD" ]]; then
         --max-turns 20 \
         $USE_SKIP_PERMISSIONS \
         $MCP_ARG \
-        -- "Use the systemic-risk-monitor agent to conduct a comprehensive black swan tail risk analysis.
+        -- "Use the black-swan-monitor agent to conduct a comprehensive black swan tail risk analysis.
 
 Execute real-time analysis using MCP tools:
 1. get_vix_data(period='1year') - Get current VIX level and 1-year percentile
@@ -148,7 +150,7 @@ else
         --max-turns 20 \
         $USE_SKIP_PERMISSIONS \
         $MCP_ARG \
-        -- "Use the systemic-risk-monitor agent to conduct a comprehensive black swan tail risk analysis.
+        -- "Use the black-swan-monitor agent to conduct a comprehensive black swan tail risk analysis.
 
 Execute real-time analysis using MCP tools:
 1. get_vix_data(period='1year') - Get current VIX level and 1-year percentile
@@ -235,7 +237,7 @@ Requirements:
 - NO purple gradients, minimal emojis (section headers only)
 - Include timestamp: $(date +'%Y-%m-%d %H:%M:%S UTC')
 - Title: 'Daily Black Swan Tail Risk Monitor'
-- Source attribution: 'Automated via systemic-risk-monitor agent'
+- Source attribution: 'Automated via black-swan-monitor agent'
 
 CRITICAL: Use the Write tool to save the complete HTML (no explanations, ONLY the HTML code) to this file:
 $HTML_TEMP_FILE
@@ -264,27 +266,54 @@ fi
 # Extract key information for email subject
 RISK_LEVEL=$(grep -i "risk.*level\|risk.*score" "$ANALYSIS_FILE" | head -1 || echo "Analysis Complete")
 
-# Step 3: Send email via Mailgun MCP tool
-log "Sending email notification (BCC) to $EMAIL_TO..."
+# Step 3: Send emails in batches
+log "Sending email notification in batches..."
 
-# Convert comma-separated emails to JSON array
-EMAIL_JSON=$(emails_to_json "$EMAIL_TO")
+# Create temp HTML file for batch sender
+HTML_SEND_FILE="/tmp/black-swan-email-send-$(date +%Y%m%d-%H%M%S).html"
+echo "$FORMATTED_HTML" > "$HTML_SEND_FILE"
 
-# Build command with or without timeout
-if [[ -n "$TIMEOUT_CMD" ]]; then
-    CMD_PREFIX="$TIMEOUT_CMD 120"
+# Use batch sender script (if remote server)
+if [[ -f "$HOME/.bashrc.claude" ]] && [[ -f "$EMAIL_CSV" ]]; then
+    # Production mode - send to all recipients from CSV in batches
+    BATCH_SENDER="$HOME/scripts/send-email-batch.sh"
+
+    if [[ ! -f "$BATCH_SENDER" ]]; then
+        error "Batch sender script not found at $BATCH_SENDER"
+        error "Please deploy send-email-batch.sh to $HOME/scripts/"
+        exit 1
+    fi
+
+    # Send emails in batches of 3
+    export MCP_CONFIG
+    export LOG_PREFIX="[BLACK_SWAN]"
+
+    "$BATCH_SENDER" "$EMAIL_CSV" "Daily Black Swan Risk Monitor - $(date +%Y-%m-%d) - ${RISK_LEVEL}" "$HTML_SEND_FILE" 3
+
+    EMAIL_EXIT=$?
+
+    if [[ $EMAIL_EXIT -eq 0 ]]; then
+        log "Emails sent successfully in batches"
+    else
+        error "Batch email delivery failed with exit code $EMAIL_EXIT"
+        rm -f "$HTML_SEND_FILE"
+        exit 1
+    fi
 else
-    CMD_PREFIX=""
-fi
+    # Local testing mode - send to single recipient
+    if [[ -n "$TIMEOUT_CMD" ]]; then
+        CMD_PREFIX="$TIMEOUT_CMD 120"
+    else
+        CMD_PREFIX=""
+    fi
 
-EMAIL_RESULT=$($CMD_PREFIX "$CLAUDE_CMD" --print \
-    $USE_SKIP_PERMISSIONS \
-    $MCP_ARG \
-    -- "Send an email using the mcp__fmp-weather-global__send_email_mailgun tool.
+    EMAIL_RESULT=$($CMD_PREFIX "$CLAUDE_CMD" --print \
+        $USE_SKIP_PERMISSIONS \
+        $MCP_ARG \
+        -- "Send an email using the mcp__fmp-weather-global__send_email_mailgun tool.
 
 Parameters:
-- to_addresses: ['suneetn@gmail.com']  # Primary recipient (visible)
-- bcc_addresses: $EMAIL_JSON  # Distribution list (hidden for privacy)
+- to_addresses: ['$EMAIL_TO']
 - subject: 'Daily Black Swan Risk Monitor - $(date +%Y-%m-%d) - ${RISK_LEVEL}'
 - content: '''$FORMATTED_HTML'''
 - is_html: true
@@ -292,16 +321,19 @@ Parameters:
 
 Execute the email send now." 2>&1)
 
-EMAIL_EXIT=$?
+    EMAIL_EXIT=$?
 
-if [[ $EMAIL_EXIT -eq 0 ]]; then
-    log "Email sent successfully to $EMAIL_TO"
-    log "Mailgun API Response: $EMAIL_RESULT"
-else
-    error "Email delivery failed with exit code $EMAIL_EXIT"
-    log "Email output: $EMAIL_RESULT"
-    exit 1
+    if [[ $EMAIL_EXIT -eq 0 ]]; then
+        log "Email sent successfully to $EMAIL_TO"
+    else
+        error "Email delivery failed"
+        rm -f "$HTML_SEND_FILE"
+        exit 1
+    fi
 fi
+
+# Cleanup temp send file
+rm -f "$HTML_SEND_FILE"
 
 # Save analysis to file for reference
 REPORT_FILE="$LOG_DIR/black-swan-report-$(date +%Y%m%d-%H%M%S).txt"
